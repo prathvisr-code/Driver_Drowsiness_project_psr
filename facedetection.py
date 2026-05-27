@@ -125,9 +125,9 @@ while True:
             # Display EAR value
             cv2.putText(frame,
                         f'EAR: {ear:.2f}',
-                        (100, 100),
+                        (60, 60),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        1.5,
+                        1.0,
                         (0, 255, 255),
                         2)
 
@@ -135,23 +135,25 @@ while True:
             # Drowsiness Detection
             # -----------------------------
             if ear < EAR_THRESHOLD:
-
                 frame_counter += 1
 
-                # If eyes closed for long duration
                 if frame_counter >= CLOSED_EYES_FRAMES:
-
                     cv2.putText(frame,
                                 'DROWSINESS ALERT!',
-                                (200, 200),
+                                (60, 110),
                                 cv2.FONT_HERSHEY_SIMPLEX,
                                 1.2,
                                 (0, 0, 255),
                                 3)
-
             else:
                 frame_counter = 0
-
+                cv2.putText(frame,
+                'Eyes Open',
+                (60, 110),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.2,
+                (0, 255, 0),
+                3)
     # Show output
     cv2.imshow("Driver Drowsiness Detection", frame)
 

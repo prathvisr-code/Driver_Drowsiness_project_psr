@@ -3,6 +3,9 @@ import mediapipe as mp
 import numpy as np
 import time
 import winsound
+import csv
+import joblib
+
 # =====================================================
 # INITIALIZE MEDIAPIPE
 # =====================================================
@@ -78,7 +81,7 @@ def normalize(value, min_val, max_val):
 EAR_THRESHOLD = 0.20
 MAR_THRESHOLD = 0.60
 
-FATIGUE_THRESHOLD = 0.45
+FATIGUE_THRESHOLD = 0.45  # Adjusted threshold based on logistic regression model
 ALARM_FRAMES = 25
 # =====================================================
 # COUNTERS
@@ -88,9 +91,24 @@ blink_count = 0
 yawn_count = 0
 
 start_time = time.time()
-
+last_save_time = time.time()
 eye_closed_frames = 0
 yawn_frames = 0
+fatigue_label = 0
+# CREATE CSV FILE
+file = open("fatigue_data.csv", "a", newline="")
+writer = csv.writer(file)
+
+writer.writerow([
+    "EAR",
+    "BlinkRate",
+    "MAR",
+    "YawnRate",
+    "VerticalRatio",
+    "EyeSlope",
+    "HorizontalDiff",
+    "Fatigue"
+])
 
 # =====================================================
 # START WEBCAM
@@ -265,27 +283,7 @@ while True:
 # DRAW HEAD ORIENTATION LINES
 # =================================================
 
-# Eye line
-        # cv2.line(frame,
-        #  (left_eye_x, left_eye_y),
-        #  (right_eye_x, right_eye_y),
-        #  (0, 255, 0),
-        #  2)
-
-# Vertical face line
-        # cv2.line(frame,
-        #  (nose_x, nose_y),
-        #  (nose_x, chin_y),
-        #  (255, 0, 0),
-        #  2)
-
-# Nose to forehead
-        # cv2.line(frame,
-        #  (nose_x, nose_y),
-        #  (nose_x, forehead_y),
-        #  (0, 0, 255),
-        #  2)
-        #     # Horizontal Difference
+#
         eye_center_x = (left_eye_x + right_eye_x) // 2
 
         horizontal_diff = abs(nose_x - eye_center_x)
@@ -314,6 +312,10 @@ while True:
 
         blink_rate = blink_count / elapsed_time_minutes
         yawn_rate = yawn_count / elapsed_time_minutes
+        # =================================================
+       
+
+        
             # =================================================
             # NORMALIZATION
             # =================================================
@@ -322,37 +324,38 @@ while True:
         norm_ear = normalize(ear, 0.15, 0.35)
         eye_closure_score = 1 - norm_ear
 
-            # Blink normalization
+        #     # Blink normalization
         norm_blink = normalize(blink_rate, 0, 40)
 
-            # MAR normalization
+        #     # MAR normalization
         norm_mar = normalize(mar, 0.2, 1.0)
 
-            # Yawn count normalization
+        #     # Yawn count normalization
         norm_yawn = normalize(yawn_rate, 0, 10)
 
-            # Vertical ratio normalization
+        #     # Vertical ratio normalization
         norm_vertical = normalize(vertical_ratio, 0.3, 0.8)
 
-            # Eye slope normalization
+        #     # Eye slope normalization
         norm_slope = normalize(eye_slope, 0, 40)
 
-            # Horizontal distraction normalization
+             # Horizontal distraction normalization
         norm_horizontal = normalize(horizontal_diff, 0, 80)
 
-            # =================================================
-            # FATIGUE SCORE
-            # =================================================
+        #     # =================================================
+             # FATIGUE SCORE
+             
+        #     # =================================================
 
         fatigue_score = (
-                0.35 * eye_closure_score +
-                0.08 * norm_blink +
-                0.25 * norm_mar +
-                0.08 * norm_yawn +
-                0.02 * norm_vertical +
-                0.19 * norm_slope +
-                0.03 * norm_horizontal
-            )
+                 0.4471 * eye_closure_score +
+                 0.0078 * norm_blink +          # WEIGHTS FROM LOGISTIC REGRESSION MODEL
+                 0.0685 * norm_mar +
+                 0.2469 * norm_yawn +
+                 0.2111 * norm_vertical +
+                 0.0153 * norm_slope +
+                 0.0033 * norm_horizontal
+             )
 
             # =================================================
             # DISPLAY VALUES
@@ -416,37 +419,50 @@ while True:
 
             cv2.putText(frame,
                         'DRIVER FATIGUE DETECTED!',
-                        (30, 320),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.0,
-                        (0, 0, 255),
-                        4)
+                         (30, 320),
+                         cv2.FONT_HERSHEY_SIMPLEX,
+                         1.0,
+                         (0, 0, 255),
+                         4)
 
             # Alarm after sustained fatigue
             if fatigue_frames >= ALARM_FRAMES:
 
-                cv2.putText(frame,
-                            'WAKE UP ALARM!',
-                            (30, 380),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1.0,
-                            (0, 0, 255),
-                            4)
+                 cv2.putText(frame,
+                             'WAKE UP ALARM!',
+                             (30, 380),
+                             cv2.FONT_HERSHEY_SIMPLEX,
+                             1.0,
+                             (0, 0, 255),
+                             4)
 
-                # Beep Sound
-                winsound.Beep(1000, 500)
+                 # Beep Sound
+                 winsound.Beep(1000, 500)
 
         else:
 
-            fatigue_frames = 0
+             fatigue_frames = 0
 
-            cv2.putText(frame,
-                        'Driver Attentive',
-                        (50, 320),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 255, 0),
-                        3)
+             cv2.putText(frame,
+                         'Driver Attentive',
+                         (50, 320),
+                         cv2.FONT_HERSHEY_SIMPLEX,
+                         1,
+                         (0, 255, 0),
+                         3)
+        current_time = time.time()
+        if current_time - last_save_time >= 1:  # Save every 1 seconds
+            writer.writerow([
+                ear,
+                blink_rate,
+                mar,
+                yawn_rate,
+                vertical_ratio,
+                eye_slope,
+                horizontal_diff,
+                fatigue_label
+            ])
+            last_save_time = current_time
 
         # =====================================================
         # SHOW OUTPUT
@@ -454,8 +470,20 @@ while True:
 
         cv2.imshow("Driver Fatigue Monitoring System", frame)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+# Read keyboard input
+        key = cv2.waitKey(1) & 0xFF
+
+# Label data manually
+        if key == ord('a'):
+
+          fatigue_label = 0      # Alert
+
+        elif key == ord('d'):
+          fatigue_label = 1      # Drowsy
+
+# Quit application
+        elif key == ord('q'):
+          break
 
 # =====================================================
 # RELEASE RESOURCES
@@ -463,3 +491,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+file.close()
